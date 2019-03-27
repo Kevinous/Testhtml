@@ -1,1 +1,247 @@
 
+<!DOCTYPE html>
+<html lang="en-US">
+  <head>
+    <meta charset="UTF-8">
+
+<!-- Begin Jekyll SEO tag v2.5.0 -->
+<title>NextCloud搭建测试 | NextCloud</title>
+<meta name="generator" content="Jekyll v3.7.4" />
+<meta property="og:title" content="NextCloud搭建测试" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="A NextCloud installation test." />
+<meta property="og:description" content="A NextCloud installation test." />
+<link rel="canonical" href="https://kevinous.github.io/NextCloud/" />
+<meta property="og:url" content="https://kevinous.github.io/NextCloud/" />
+<meta property="og:site_name" content="NextCloud" />
+<script type="application/ld+json">
+{"@type":"WebSite","url":"https://kevinous.github.io/NextCloud/","name":"NextCloud","headline":"NextCloud搭建测试","description":"A NextCloud installation test.","@context":"http://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#157878">
+    <link rel="stylesheet" href="/NextCloud/assets/css/style.css?v=f5e0ffebfc3371fe3ee9ebd5ecd8a8a5ecc359f7">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">NextCloud</h1>
+      <h2 class="project-tagline">A NextCloud installation test.</h2>
+      
+        <a href="https://github.com/Kevinous/NextCloud" class="btn">View on GitHub</a>
+      
+      
+    </section>
+
+    <section class="main-content">
+      <h2 id="nextcloud搭建测试">NextCloud搭建测试</h2>
+
+<h3 id="dependencies">Dependencies</h3>
+<p>首先按照官方文档先把依赖加上。</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt-get install apache2 mariadb-server libapache2-mod-php7.2
+<span class="nb">sudo </span>apt-get install php7.2-gd php7.2-json php7.2-mysql php7.2-curl php7.2-mbstring
+<span class="nb">sudo </span>apt-get install php7.2-intl php-imagick php7.2-xml php7.2-zip
+</code></pre></div></div>
+<p>官方是没有sudo的，但会导致锁文件打不开权限不够的问题。</p>
+
+<p>Apache是一个web服务器网页端服务，libapache2-mod-php7.2提供了必须的php扩展。</p>
+
+<p>接着下载NextCloud源码，直接从官网<a href="https://nextcloud.com/install/">Link</a>获取，选择Download for server-&gt;Archive File。会下载一个名为nextcloud-x.x.x.zip或者其他格式的压缩包。官方文档中说到需要下载对应校验和文件比如.md5或者.sha256，但是我没找到在哪里下载，并且似乎也并不需要（我是在windows里解压的）。PGP签名也是同样没有遇到，不清楚为什么。</p>
+
+<p>之后解压/提取出来会有一个/nextcloud目录，按照文档把这个目录拷到 <code class="highlighter-rouge">/var/www</code>下。</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>cp <span class="nt">-r</span> nextcloud /var/www
+<span class="nb">sudo </span>chown <span class="nt">-R</span> www-data:www-data /var/www/nextcloud/
+</code></pre></div></div>
+<p>这里还需要将nextcloud的所有者切换到www-data，文档中没有说</p>
+<h3 id="apache">Apache</h3>
+<p>之后开始配置apache。</p>
+
+<p>由于之前已经下载好了这里可以直接设置。</p>
+
+<p>此时从浏览器进入页面可以看到it works!</p>
+
+<p>可以改动绑定的端口，<code class="highlighter-rouge">Listen 80</code>可以改为自己想用的端口，内容如下</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>vi /etc/apache2/ports.conf
+<span class="c">########################################content is as follows</span>
+<span class="c"># If you just change the port or add more ports here, you will likely also</span>
+<span class="c"># have to change the VirtualHost statement in</span>
+<span class="c"># /etc/apache2/sites-enabled/000-default.conf</span>
+
+Listen 80
+
+&lt;IfModule ssl_module&gt;
+        Listen 443
+&lt;/IfModule&gt;
+
+&lt;IfModule mod_gnutls.c&gt;
+        Listen 443
+&lt;/IfModule&gt;
+<span class="c"># vim: syntax=apache ts=4 sw=4 sts=4 sr noet                                       </span>
+</code></pre></div></div>
+
+<p>接着配置虚拟主机。这里说一下sites-enabled和sites-available的关系。/etc/apache2/apache.conf是真正的配置文件，Apache启动时会看这个文件，其他的配置文件通过引用的方式包含进来。sites-enabled是apache.conf里出现的一个目录，它里面存放的都是链接文件，链接指向/etc/apache2/sites-available。因此可以说真正的配置文件在sites-available中。但是使用sites-enabled的好处在于可以比较简单地添加删除某个配置好的主机，只需要增删链接文件而不用直接对配置文件进行操作。</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> /etc/apache2/sites-available
+<span class="nb">sudo </span>vi nextcloud.conf
+</code></pre></div></div>
+
+<p>写入以下内容（来自NextCloud官方文档中）</p>
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Alias /nextcloud "/var/www/nextcloud/"
+
+<span class="nt">&lt;Directory</span> <span class="err">/</span><span class="na">var</span><span class="err">/</span><span class="na">www</span><span class="err">/</span><span class="na">nextcloud</span><span class="nt">/&gt;</span>
+  Options +FollowSymlinks
+  AllowOverride All
+
+ <span class="nt">&lt;IfModule</span> <span class="na">mod_dav</span><span class="err">.</span><span class="na">c</span><span class="nt">&gt;</span>
+  Dav off
+ <span class="nt">&lt;/IfModule&gt;</span>
+
+ SetEnv HOME /var/www/nextcloud
+ SetEnv HTTP_HOME /var/www/nextcloud
+
+<span class="nt">&lt;/Directory&gt;</span>
+</code></pre></div></div>
+<p>之后将其链接到sites-enabled中</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>ln <span class="nt">-s</span> /etc/apache2/sites-available/nextcloud.conf /etc/apache2/sites-enabled/nextcloud.conf
+</code></pre></div></div>
+
+<p>此时启动127.0.0.1:80可以看到nextcloud的页面。</p>
+
+<h3 id="mariadb">MariaDB</h3>
+<p>MariaDB是兼容MYSQL的，之前通过官方文档的下载依赖已经下载好了MariaDB。</p>
+
+<p>启动并且配置MariaDB</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>systemctl start mysql  
+<span class="c">#启动</span>
+<span class="nb">sudo </span>systemctl status mysql
+<span class="c">#查看状态</span>
+<span class="nb">sudo </span>mysql_secure_installation
+<span class="c">#执行初始化安全脚本，默认root密码为空，按照脚本里的提示进行初始化</span>
+</code></pre></div></div>
+
+<p>之后创建NextCloud创建数据库和用户
+创建数据库nextcloud，用户名nextcloud，密码123456</p>
+<pre><code class="language-mysql">$ sudo mysql -u root -p
+MariaDB [(none)]&gt; CREATE DATABASE nextcloud;
+MariaDB [(none)]&gt; GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'localhost' IDENTIFIED BY 'XXXXXXXX';
+MariaDB [(none)]&gt; FLUSH PRIVILEGES;
+MariaDB [(none)]&gt; \q
+</code></pre>
+<p>其中
+<code class="highlighter-rouge">grant 权限1,权限2,…权限n on 数据库名称.表名称 to 用户名@用户地址 identified by ‘连接口令’;</code>
+权限1,权限2,…权限n代表select,insert,update,delete,create,drop,index,alter,grant,references,reload,shutdown,process,file等14个权限。
+当权限1,权限2,…权限n被all privileges或者all代替，表示赋予用户全部权限。
+当数据库名称.表名称被<em>.</em>代替，表示赋予用户操作服务器上所有数据库所有表的权限。
+用户地址可以是localhost，也可以是ip地址、机器名字、域名。也可以用’%’表示从任何地址连接。
+‘连接口令’不能为空，否则创建失败。</p>
+
+<h4 id="目前使用apacha成功运行了nextcloud接下来到nginx部分">目前使用Apacha成功运行了Nextcloud，接下来到nginx部分</h4>
+
+<h3 id="nginx">Nginx</h3>
+
+<p>首先安装nginx并设置自启动</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt install nginx
+<span class="nb">sudo </span>systemctl <span class="nb">enable </span>nginx
+<span class="nb">sudo </span>systemctl start nginx
+</code></pre></div></div>
+
+<p>(可以使用<code class="highlighter-rouge">systemctl status nginx</code>查看状态）</p>
+
+<p>并且因为需要使用php扩展来支持并且优化php，我们也需要开启php-fpm</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>apt install php-fpm
+<span class="nb">sudo </span>systemctl <span class="nb">enable </span>php-fpm
+<span class="nb">sudo </span>systemctl start php-fpm
+</code></pre></div></div>
+
+<p>同时因为现在开始使用nginx代理，我们将之前的Apache取消开机自启动</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>systemctl disable apache2.service
+<span class="nb">sudo </span>systemctl stop apache2.service
+</code></pre></div></div>
+
+<p>接着创建一个Nginx Server Block</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> /etc/nginx/sites-available
+<span class="nb">sudo </span>vi nextcloud
+</code></pre></div></div>
+<p>接着将<a href="https://www.linuxbabe.com/ubuntu/install-nextcloud-ubuntu-18-04-nginx-lemp">此处</a>的Step 3处代码复制进去</p>
+
+<p>然后进行软连接</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ln <span class="nt">-s</span> ../sites-enabled/nextcloud nextcloud
+</code></pre></div></div>
+
+<p>接着测试一下语法是否有问题</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>nginx <span class="nt">-t</span>
+</code></pre></div></div>
+
+<p>如果没有问题会反馈success，接下来让nginx重新加载</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>systemctl reload nginx
+</code></pre></div></div>
+<p><em>需要注意的是，千万记住要改动trusted_domin部分，详见<a href="">此处</a></em>
+此时使用http服务的部署在nginx上的nextcloud就完成了。</p>
+
+<h3 id="反向代理">反向代理</h3>
+
+<p>反向代理，即由某个服务器代理多个服务器，使得这几个服务器对客户端隐藏，起到资源均衡的作用。使用nginx代理即是使用proxy_pass来进行定向</p>
+
+<p>这里为了体现出代理的作用我先改动<code class="highlighter-rouge">sites-available/nextcloud</code>文件，将<code class="highlighter-rouge">listen 80</code>改为<code class="highlighter-rouge">listen 8080</code>。此时再访问192.168.192.131(本地ip)出现404，访问192.168.192.131:8080出现nextcloud登录界面。</p>
+
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">cd</span> /etc/nginx/sites-available
+<span class="nb">sudo </span>vi proxy
+<span class="c">##</span>
+<span class="c">#paste these</span>
+<span class="c">#</span>
+<span class="c">#upstream myNextcloud {</span>
+<span class="c">#   	server 192.168.192.131:8080; </span>
+<span class="c">#}</span>
+<span class="c">#server {</span>
+<span class="c">#       listen 80;</span>
+<span class="c">#       server_name _;</span>
+<span class="c">#       location / {</span>
+<span class="c">#         proxy_pass http://myNextcloud;</span>
+<span class="c">#         index index.html index.htm;</span>
+<span class="c">#         proxy_set_header Host $host;</span>
+<span class="c">#	}</span>
+<span class="c">#}</span>
+<span class="c">###end of content</span>
+ln <span class="nt">-s</span> proxy ../sites-enabled/proxy
+</code></pre></div></div>
+<p><em>这里的proxy_set_header Host是必须的，否则会出现不信任问题———因为发给真实服务器的http请求的HOST字段还是反向代理服务器的HOST，因此没有经过设置trusted_domin会被拒绝，加上这一句header后即可解决</em></p>
+
+<hr />
+
+<h4 id="proxy_set_header">proxy_set_header</h4>
+<p>Host的含义是表明请求的主机名，因为nginx作为反向代理使用，而如果后端真是的服务器设置有类似防盗链或者根据http请求头中的host字段来进行路由或判断功能的话，如果反向代理层的nginx不重写请求头中的host字段，将会导致请求失败【默认反向代理服务器会向后端真实服务器发送请求，并且请求头中的host字段应为proxy_pass指令设置的服务器】。</p>
+
+<p>同理，X_Forward_For字段表示该条http请求是有谁发起的？如果反向代理服务器不重写该请求头的话，那么后端真实服务器在处理时会认为所有的请求都来在反向代理服务器，如果后端有防攻击策略的话，那么机器就被封掉了。因此，在配置用作反向代理的nginx中一般会增加两条配置，修改http的请求头：</p>
+
+<p>proxy_set_header Host $http_host;
+proxy_set_header X-Forward-For $remote_addr;</p>
+
+<p>这里的$http_host和$remote_addr都是nginx的导出变量，可以再配置文件中直接使用。如果Host请求头部没有出现在请求头中，则$http_host值为空，但是$host值为主域名。因此，一般而言，会用$host代替$http_host变量，从而避免http请求中丢失Host头部的情况下Host不被重写的失误。
+X-Forwarded-For:简称XFF头，它代表客户端，也就是HTTP的请求端真实的IP，只有在通过了HTTP 代理或者负载均衡服务器时才会添加该项。 它不是RFC中定义的标准请求头信息，在squid缓存代理服务器开发文档中可以找到该项的详细介绍。标准格式如下：X-Forwarded-For: client1, proxy1, proxy2。</p>
+
+<hr />
+
+<p>输入内容后</p>
+<div class="language-shell highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nb">sudo </span>nginx <span class="nt">-t</span>  <span class="c">#测试语法</span>
+<span class="nb">sudo </span>nginx <span class="nt">-s</span> reload  <span class="c">#重新加载配置</span>
+</code></pre></div></div>
+<p>此时访问localhost可以登录到nextcloud。</p>
+
+
+      <footer class="site-footer">
+        
+          <span class="site-footer-owner"><a href="https://github.com/Kevinous/NextCloud">NextCloud</a> is maintained by <a href="https://github.com/Kevinous">Kevinous</a>.</span>
+        
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a>.</span>
+      </footer>
+    </section>
+
+    
+  </body>
+</html>
+
